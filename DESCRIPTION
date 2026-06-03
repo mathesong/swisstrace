@@ -1,0 +1,27 @@
+Package: swisstrace
+Title: Correction and Calibration of Swisstrace Twilite Blood Data
+Version: 0.1.0
+Authors@R:
+    person("Granville", "Matheson", email = "mathesong@gmail.com",
+           role = c("aut", "cre"))
+Description: Corrects and calibrates raw Swisstrace twilite automatic
+    blood-sampling '.crv' files into whole-blood radioactivity input
+    functions via background subtraction, decay correction, calibration
+    and resampling. Provides per-study calibration lookup by date, a QC
+    plot, and BIDS PET blood output.
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+Imports:
+    graphics,
+    grDevices,
+    jsonlite,
+    stats,
+    tibble,
+    tools,
+    utils
+Suggests:
+    readxl,
+    testthat (>= 3.0.0)
+License: MIT + file LICENSE
+Config/roxygen2/version: 8.0.0
+Config/testthat/edition: 3
