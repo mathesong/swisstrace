@@ -71,6 +71,25 @@ before the rise to the peak begins. This should produce little to no bias for
 radiotracers with long half-lives, but may be non-negligible especially for 15O
 studies.
 
+### Output sampling (frames)
+
+By default the corrected curve is returned **as-is**, at the twilite's native
+sampling — no resampling is applied. To resample onto a frame scheme instead, pass a
+`frame_scheme` data.frame with `width` and `end` columns (both in seconds). Copy the
+example below and adjust the widths and ends to taste — here, 1-second frames up to
+180 s, then 10-second frames up to 600 s:
+
+``` r
+swisstrace_correct(
+  "ABC_P009_D1.crv", calibration_factor = 0.425, isotope = "F18",
+  frame_scheme = data.frame(width = c(1, 10),
+                            end   = c(180, 600))
+)
+```
+
+This also works with `swisstrace_process()` and `swisstrace_convert_batch()`, which
+forward `frame_scheme` (and other options) through to `swisstrace_correct()`.
+
 ### Looking up the calibration value
 
 The calibration factor is established periodically for the system. If you keep a

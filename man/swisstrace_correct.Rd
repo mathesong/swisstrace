@@ -11,7 +11,7 @@ swisstrace_correct(
   pet_start = NULL,
   half_life = NULL,
   lead = 20,
-  frame_scheme = data.frame(width = c(1, 10), end = c(180, 600)),
+  frame_scheme = NULL,
   zero_first_frame = TRUE,
   baseline_k = 3,
   min_run = 5,
@@ -48,8 +48,11 @@ the twilite >=20 s before injection. Automatically reduced if fewer than \code{l
 seconds were recorded before the onset (it keeps whatever is available). The
 lead actually applied is returned as \verb{$lead}.}
 
-\item{frame_scheme}{data.frame with columns \code{width} and \code{end} (seconds) defining
-the output resampling. Default = 1 s frames to 180 s, then 10 s frames to 600 s.}
+\item{frame_scheme}{Optional data.frame with columns \code{width} and \code{end} (seconds)
+defining the output resampling. If \code{NULL} (the default) the corrected samples are
+returned as-is at their native sampling, without any resampling. To resample,
+pass e.g. \code{data.frame(width = c(1, 10), end = c(180, 600))} (1 s frames to 180 s,
+then 10 s frames to 600 s) and modify to taste.}
 
 \item{zero_first_frame}{If TRUE (default), the first output frame
 is set to exactly 0.}
@@ -72,8 +75,8 @@ only affects the printed clock time, not any computed quantity).}
 }
 \value{
 A list with:
-\item{tac}{tibble: frame \code{time} (mid-time, s), \code{activity} (kBq/cc), and
-\code{frame_start}, \code{frame_end}, \code{frame_dur}.}
+\item{tac}{tibble: \code{time} (s; sample time, or frame mid-time when resampled),
+\code{activity} (kBq/cc), and \code{frame_start}, \code{frame_end}, \code{frame_dur}.}
 \item{calibration_factor, background, isotope, half_life, lambda}{correction
 parameters used.}
 \item{date, start_time, acq_start, acq_end, acq_duration}{acquisition timing.}
@@ -83,4 +86,20 @@ samples as a tibble (\code{time}, \code{coincidence}, \code{singles1}, \code{sin
 }
 \description{
 Correct and calibrate a twilite .crv file
+}
+\examples{
+\dontrun{
+# Default: corrected samples returned as-is, at their native sampling.
+res <- swisstrace_correct("ASPC0243_P009_D1.crv",
+                          calibration_factor = 0.425, isotope = "F18")
+res$tac
+
+# Resample onto frames: 1 s frames to 180 s, then 10 s frames to 600 s.
+# Copy this data.frame and modify the widths/ends to taste.
+res <- swisstrace_correct("ASPC0243_P009_D1.crv",
+                          calibration_factor = 0.425, isotope = "F18",
+                          frame_scheme = data.frame(width = c(1, 10),
+                                                    end   = c(180, 600)))
+res$tac
+}
 }

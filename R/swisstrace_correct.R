@@ -83,8 +83,11 @@ assert_raw_crv <- function(file) {
 #'   the twilite >=20 s before injection. Automatically reduced if fewer than `lead`
 #'   seconds were recorded before the onset (it keeps whatever is available). The
 #'   lead actually applied is returned as `$lead`.
-#' @param frame_scheme data.frame with columns `width` and `end` (seconds) defining
-#'   the output resampling. Default = 1 s frames to 180 s, then 10 s frames to 600 s.
+#' @param frame_scheme Optional data.frame with columns `width` and `end` (seconds)
+#'   defining the output resampling. If `NULL` (the default) the corrected samples are
+#'   returned as-is at their native sampling, without any resampling. To resample,
+#'   pass e.g. `data.frame(width = c(1, 10), end = c(180, 600))` (1 s frames to 180 s,
+#'   then 10 s frames to 600 s) and modify to taste.
 #' @param zero_first_frame If TRUE (default), the first output frame
 #'   is set to exactly 0.
 #' @param baseline_k Detection threshold, in robust SDs above the background mean. Default is 3.
@@ -99,14 +102,30 @@ assert_raw_crv <- function(file) {
 #' @param ... Reserved for future options; currently ignored.
 #'
 #' @return A list with:
-#'   \item{tac}{tibble: frame `time` (mid-time, s), `activity` (kBq/cc), and
-#'     `frame_start`, `frame_end`, `frame_dur`.}
+#'   \item{tac}{tibble: `time` (s; sample time, or frame mid-time when resampled),
+#'     `activity` (kBq/cc), and `frame_start`, `frame_end`, `frame_dur`.}
 #'   \item{calibration_factor, background, isotope, half_life, lambda}{correction
 #'     parameters used.}
 #'   \item{date, start_time, acq_start, acq_end, acq_duration}{acquisition timing.}
 #'   \item{pet_start, t0_seconds, t0_detected, lead}{the time-0 used and how.}
 #'   \item{n_raw, n_background, file, frame_scheme, raw}{provenance, plus the raw
 #'     samples as a tibble (`time`, `coincidence`, `singles1`, `singles2`).}
+#'
+#' @examples
+#' \dontrun{
+#' # Default: corrected samples returned as-is, at their native sampling.
+#' res <- swisstrace_correct("ASPC0243_P009_D1.crv",
+#'                           calibration_factor = 0.425, isotope = "F18")
+#' res$tac
+#'
+#' # Resample onto frames: 1 s frames to 180 s, then 10 s frames to 600 s.
+#' # Copy this data.frame and modify the widths/ends to taste.
+#' res <- swisstrace_correct("ASPC0243_P009_D1.crv",
+#'                           calibration_factor = 0.425, isotope = "F18",
+#'                           frame_scheme = data.frame(width = c(1, 10),
+#'                                                     end   = c(180, 600)))
+#' res$tac
+#' }
 #' @export
 swisstrace_correct <- function(file,
                                 calibration_factor,
@@ -114,8 +133,7 @@ swisstrace_correct <- function(file,
                                 pet_start = NULL,
                                 half_life = NULL,
                                 lead = 20,
-                                frame_scheme = data.frame(width = c(1, 10),
-                                                          end   = c(180, 600)),
+                                frame_scheme = NULL,
                                 zero_first_frame = TRUE,
                                 baseline_k = 3,
                                 min_run = 5,
@@ -263,40 +281,67 @@ swisstrace_correct <- function(file,
   tau  <- secs - t0_sec
   corr <- (coinc - background) * exp(lambda * tau) * calibration_factor
 
-  ## --- build frame edges from the scheme ------------------------------------
-  edges <- 0
-  prev <- 0
-  for (r in seq_len(nrow(frame_scheme))) {
-    edges <- c(edges, seq(prev + frame_scheme$width[r], frame_scheme$end[r],
-                          by = frame_scheme$width[r]))
-    prev <- frame_scheme$end[r]
-  }
-  edges <- unique(edges)
-  nfr <- length(edges) - 1L
-
-  ## --- resample (cut before time 0, average corrected samples per frame) ----
+  ## --- cut before time 0 ----------------------------------------------------
   keep <- tau >= 0
-  tau_k <- tau[keep]; corr_k <- corr[keep]
-  bin <- findInterval(tau_k, edges, rightmost.closed = FALSE)  # 1..nfr inside scheme
-  inside <- bin >= 1L & bin <= nfr
-  value <- tapply(corr_k[inside], factor(bin[inside], levels = seq_len(nfr)),
-                  mean, simplify = TRUE)
-  value <- as.numeric(value)  # NA where a frame had no samples
+  ord  <- order(tau[keep])
+  tau_k  <- tau[keep][ord]
+  corr_k <- corr[keep][ord]
 
-  # keep only frames that fall within the acquired data
-  last_data_frame <- findInterval(max(tau_k), edges, rightmost.closed = TRUE)
-  last_data_frame <- min(last_data_frame, nfr)
-  idx <- seq_len(last_data_frame)
+  if (is.null(frame_scheme)) {
+    ## --- no framing: return the corrected samples as-is ---------------------
+    n <- length(tau_k)
+    value <- corr_k
+    if (zero_first_frame && n) value[1] <- 0
+    # frame boundaries that tile the timeline (midpoints between samples)
+    if (n >= 2) {
+      mids        <- (tau_k[-1] + tau_k[-n]) / 2
+      frame_start <- c(0, mids)
+      frame_end   <- c(mids, tau_k[n] + (tau_k[n] - mids[n - 1L]))
+    } else {
+      frame_start <- rep(0, n)
+      frame_end   <- tau_k
+    }
+    tac <- tibble::tibble(
+      time        = tau_k,
+      activity    = value,
+      frame_start = frame_start,
+      frame_end   = frame_end,
+      frame_dur   = frame_end - frame_start
+    )
+  } else {
+    ## --- build frame edges from the scheme ----------------------------------
+    edges <- 0
+    prev <- 0
+    for (r in seq_len(nrow(frame_scheme))) {
+      edges <- c(edges, seq(prev + frame_scheme$width[r], frame_scheme$end[r],
+                            by = frame_scheme$width[r]))
+      prev <- frame_scheme$end[r]
+    }
+    edges <- unique(edges)
+    nfr <- length(edges) - 1L
 
-  if (zero_first_frame && length(idx)) value[idx[1]] <- 0
+    ## --- resample (average corrected samples per frame) ---------------------
+    bin <- findInterval(tau_k, edges, rightmost.closed = FALSE)  # 1..nfr inside scheme
+    inside <- bin >= 1L & bin <= nfr
+    value <- tapply(corr_k[inside], factor(bin[inside], levels = seq_len(nfr)),
+                    mean, simplify = TRUE)
+    value <- as.numeric(value)  # NA where a frame had no samples
 
-  tac <- tibble::tibble(
-    time        = (edges[idx] + edges[idx + 1L]) / 2,
-    activity    = value[idx],
-    frame_start = edges[idx],
-    frame_end   = edges[idx + 1L],
-    frame_dur   = edges[idx + 1L] - edges[idx]
-  )
+    # keep only frames that fall within the acquired data
+    last_data_frame <- findInterval(max(tau_k), edges, rightmost.closed = TRUE)
+    last_data_frame <- min(last_data_frame, nfr)
+    idx <- seq_len(last_data_frame)
+
+    if (zero_first_frame && length(idx)) value[idx[1]] <- 0
+
+    tac <- tibble::tibble(
+      time        = (edges[idx] + edges[idx + 1L]) / 2,
+      activity    = value[idx],
+      frame_start = edges[idx],
+      frame_end   = edges[idx + 1L],
+      frame_dur   = edges[idx + 1L] - edges[idx]
+    )
+  }
 
   ## --- assemble result ------------------------------------------------------
   list(

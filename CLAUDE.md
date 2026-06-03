@@ -55,9 +55,11 @@ corrected(t) = (coincidence(t) − background) × exp(λ·(t − t0)) × calibra
    `isotope` (e.g. "F18", "C11", "O15", "Ga68") or a raw `half_life`. Branching-ratio
    correction is left OFF (folded into the calibration factor).
 4. **Calibration factor**: per-study multiplier, from a calibration-vs-date sheet.
-5. **Cut** before t0, then **resample** (`frame_scheme`: default 1 s frames to 180 s,
-   then 10 s to 600 s; first frame forced to 0 when `zero_first_frame = TRUE`).
-   Output = mid-time (s) + activity (kBq/cc).
+5. **Cut** before t0, then optionally **resample** (`frame_scheme`). Default is
+   `NULL` = no resampling: corrected samples returned as-is at native sampling. Pass
+   e.g. `data.frame(width = c(1, 10), end = c(180, 600))` to frame onto 1 s frames to
+   180 s then 10 s to 600 s. First frame forced to 0 when `zero_first_frame = TRUE`.
+   Output = time (s) + activity (kBq/cc).
 
 `isotope` is **required** (a wrong one silently corrupts the decay correction) unless
 `half_life` is given directly.
