@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "swisstrace"
+version = "0.1.0"
+description = "Correction and calibration of Swisstrace twilite blood data"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE.md"}
+dependencies = ["numpy>=1.23", "pandas>=1.5", "matplotlib>=3.6", "tzdata>=2022.1; sys_platform == 'win32'"]
+
+[project.optional-dependencies]
+excel = ["openpyxl>=3.0", "xlrd>=2.0"]
+test = ["pytest>=7"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["swisstrace*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

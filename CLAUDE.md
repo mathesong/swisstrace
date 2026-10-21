@@ -1,13 +1,13 @@
 # swisstrace
 
-An R package that corrects and calibrates raw Swisstrace **twilite**
+R, Python and MATLAB tools that correct and calibrate raw Swisstrace **twilite**
 automatic-blood-sampler `.crv` files (whole-blood radioactivity over time) into
 calibrated whole-blood activity input functions (AIFs, kBq/cc). The goal is a generic,
 automated, scriptable correction so this step can be done with ordinary tooling in R.
 
 ## Layout
 
-This repo is the **R package itself** (standard layout):
+The repository contains independently usable R, Python and MATLAB implementations. The complete R package is in `R/`; the paths below are relative to that directory. Python lives in `Python/` and MATLAB in `MATLAB/` (see their READMEs for APIs and tests).
 
 - `R/` — package source.
   - `swisstrace_correct.R` — the core correction (also defines `assert_raw_crv()`).
@@ -20,7 +20,7 @@ This repo is the **R package itself** (standard layout):
   grDevices, jsonlite, stats, tibble, tools, utils; Suggests: readxl for Excel
   manifests, testthat).
 
-Build/iterate with `devtools::load_all()` / `devtools::document()` /
+From the `R/` package directory, build/iterate with `devtools::load_all()` / `devtools::document()` /
 `devtools::install()`. Real `.crv` data and reference outputs live outside this repo,
 in a separate data/analysis workspace.
 
@@ -37,7 +37,7 @@ YYYY M D H M S.sss   <Counter_1>   <Counter_2>   <Counter_3>
 files begin with a `Corrected_&_calibrated ... value` header). It is called by both
 `swisstrace_correct()` and `swisstrace_process()`.
 
-## The correction (reverse-engineered, validated to <0.06 kBq/cc against reference outputs)
+## The correction (R implementation reverse-engineered and validated to <0.06 kBq/cc against reference outputs)
 
 ```
 corrected(t) = (coincidence(t) − background) × exp(λ·(t − t0)) × calibration_factor
@@ -128,3 +128,24 @@ max(abs(res$tac$activity - ref))
 ## Next
 
 Batch conversion over many measurements is implemented (`swisstrace_convert_batch()`).
+
+## Python development
+
+From the repository root: `python -m pip install -e "./Python[test,excel]"` and
+`python -m pytest Python/tests`. Keep valid-input correction mathematics aligned
+with R; cross-language tests run with R/tibble/jsonlite in CI. Python QC returns
+a Matplotlib Figure, correction returns a dictionary, and tables are pandas DataFrames.
+
+## MATLAB development
+
+MATLAB support is tested on R2024b on Linux; other releases and platforms are
+unverified. No additional toolboxes. Add `MATLAB/` to the path, then run
+`results = runtests('MATLAB/tests'); assertSuccess(results)`. Public function
+names match R; optional inputs use name/value pairs, results are structs/tables,
+and QC returns a figure. Helpers stay in `MATLAB/private/`.
+`MATLAB/tests/generate_r_reference.R` generates deterministic expected values
+from the R implementation; the MATLAB CI job runs these comparisons.
+
+The R reference-output validation above does not independently validate the MATLAB
+port against real/vendor recordings. See `MATLAB/README.md` for the outstanding
+validation follow-up and its acceptance criteria.

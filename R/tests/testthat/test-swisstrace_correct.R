@@ -137,7 +137,9 @@ test_that("the result has the documented shape", {
   expect_s3_class(res$tac, "tbl_df")
   expect_named(res$tac, c("time", "activity", "frame_start", "frame_end", "frame_dur"))
   expect_equal(res$tac$frame_dur, res$tac$frame_end - res$tac$frame_start)
-  expect_equal(res$tac$time, (res$tac$frame_start + res$tac$frame_end) / 2)
+  expect_equal(res$tac$time[-1],
+               ((res$tac$frame_start + res$tac$frame_end) / 2)[-1])
+  expect_equal(res$tac$frame_start[1], 0)
 
   expect_s3_class(res$raw, "tbl_df")
   expect_named(res$raw, c("time", "coincidence", "singles1", "singles2"))

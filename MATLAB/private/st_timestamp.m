@@ -1,0 +1,16 @@
+function timestamp = st_timestamp(m, tz)
+% datetime supports fractional seconds without rounding them to integers.
+if any(~isfinite(m(:))) || size(m, 2) ~= 6 || ...
+        any(any(m(:, 1:5) ~= fix(m(:, 1:5)))) || ...
+        any(m(:, 2) < 1 | m(:, 2) > 12 | m(:, 3) < 1 | m(:, 3) > 31 | ...
+            m(:, 4) < 0 | m(:, 4) > 23 | m(:, 5) < 0 | m(:, 5) > 59 | ...
+            m(:, 6) < 0 | m(:, 6) >= 60)
+    error('swisstrace:InvalidTimestamp', 'Invalid raw timestamp.');
+end
+timestamp = datetime(m(:, 1), m(:, 2), m(:, 3), m(:, 4), m(:, 5), m(:, 6), ...
+    'TimeZone', st_text(tz, 'tz'));
+% datetime normalizes e.g. February 30; such dates must not pass silently.
+if any(year(timestamp) ~= m(:, 1) | month(timestamp) ~= m(:, 2) | day(timestamp) ~= m(:, 3))
+    error('swisstrace:InvalidTimestamp', 'Invalid calendar date in raw timestamp.');
+end
+end
